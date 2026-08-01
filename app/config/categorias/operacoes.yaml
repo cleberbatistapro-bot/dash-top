@@ -1,0 +1,84 @@
+categoria: operacoes
+nome_exibicao: "Operações"
+icone: "ti-truck"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data"
+    tipo: data
+    obrigatorio: true
+  - id: equipe
+    nome_exibicao: "Equipe"
+    tipo: texto
+    obrigatorio: true
+  - id: tipo_operacao
+    nome_exibicao: "Tipo de operação"
+    tipo: texto
+    obrigatorio: false
+  - id: tempo_ciclo_horas
+    nome_exibicao: "Tempo de ciclo (horas)"
+    tipo: numero
+    obrigatorio: true
+  - id: dentro_do_sla
+    nome_exibicao: "Dentro do SLA (sim/não)"
+    tipo: texto
+    obrigatorio: true
+
+filtros:
+  - periodo
+  - equipe
+  - tipo_operacao
+
+kpis:
+  - id: tempo_ciclo_medio
+    formula: media(tempo_ciclo_horas)
+    formato: numero
+    polaridade: alta_negativa
+  - id: sla_cumprido_percentual
+    formula: contagem(linhas) onde dentro_do_sla=sim / contagem(linhas)
+    formato: percentual
+    polaridade: alta_positiva
+  - id: total_operacoes
+    formula: contagem(linhas)
+    formato: numero
+    polaridade: alta_positiva
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Operações por mês"
+        series:
+          - campo_valor: contagem
+            nome: "Operações"
+            cor: acc
+            preenchido: true
+      - tipo: ranking
+        campo: equipe
+        campo_valor: contagem
+        titulo: "Operações por equipe"
+      - tipo: composicao
+        campo: tipo_operacao
+        campo_valor: contagem
+        titulo: "Composição por tipo de operação"
+        formato: numero
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Por equipe"
+    graficos:
+      - tipo: ranking
+        campo: equipe
+        campo_valor: contagem
+        titulo: "Operações por equipe"
+      - tipo: composicao
+        campo: equipe
+        campo_valor: contagem
+        titulo: "Composição por equipe"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela

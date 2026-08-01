@@ -1,0 +1,91 @@
+categoria: estoque
+nome_exibicao: "Estoque"
+icone: "ti-box"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data"
+    tipo: data
+    obrigatorio: true
+  - id: produto
+    nome_exibicao: "Produto"
+    tipo: texto
+    obrigatorio: true
+  - id: categoria_produto
+    nome_exibicao: "Categoria do produto"
+    tipo: texto
+    obrigatorio: false
+  - id: quantidade
+    nome_exibicao: "Quantidade"
+    tipo: numero
+    obrigatorio: true
+  - id: valor_unitario
+    nome_exibicao: "Valor unitário"
+    tipo: numero
+    obrigatorio: true
+  - id: fornecedor
+    nome_exibicao: "Fornecedor"
+    tipo: texto
+    obrigatorio: false
+
+filtros:
+  - periodo
+  - categoria_produto
+  - fornecedor
+
+kpis:
+  - id: valor_total_estoque
+    formula: soma(quantidade * valor_unitario)
+    formato: moeda
+    polaridade: alta_positiva
+  - id: produtos_distintos
+    formula: contagem_unica(produto)
+    formato: numero
+    polaridade: alta_positiva
+  - id: quantidade_total
+    formula: soma(quantidade)
+    formato: numero
+    polaridade: alta_positiva
+  - id: giro_medio
+    formula: customizado
+    formato: numero
+    polaridade: alta_positiva
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Valor em estoque por mês"
+        series:
+          - campo_valor: "quantidade * valor_unitario"
+            nome: "Valor em estoque"
+            cor: acc
+            preenchido: true
+      - tipo: ranking
+        campo: produto
+        campo_valor: "quantidade * valor_unitario"
+        titulo: "Ranking por produto"
+      - tipo: composicao
+        campo: categoria_produto
+        campo_valor: "quantidade * valor_unitario"
+        titulo: "Composição por categoria de produto"
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Curva ABC"
+    graficos:
+      - tipo: ranking
+        campo: produto
+        campo_valor: "quantidade * valor_unitario"
+        titulo: "Curva ABC por produto"
+      - tipo: composicao
+        campo: categoria_produto
+        campo_valor: "quantidade * valor_unitario"
+        titulo: "Composição por categoria de produto"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela

@@ -1,0 +1,92 @@
+categoria: rh
+nome_exibicao: "RH"
+icone: "ti-users"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data"
+    tipo: data
+    obrigatorio: true
+  - id: colaborador
+    nome_exibicao: "Colaborador"
+    tipo: texto
+    obrigatorio: true
+  - id: departamento
+    nome_exibicao: "Departamento"
+    tipo: texto
+    obrigatorio: true
+  - id: cargo
+    nome_exibicao: "Cargo"
+    tipo: texto
+    obrigatorio: false
+  - id: status
+    nome_exibicao: "Status (ativo/desligado)"
+    tipo: texto
+    obrigatorio: true
+  - id: salario
+    nome_exibicao: "Salário"
+    tipo: numero
+    obrigatorio: false
+
+filtros:
+  - periodo
+  - departamento
+  - cargo
+
+kpis:
+  - id: headcount_ativo
+    formula: contagem(linhas) onde status=ativo
+    formato: numero
+    polaridade: alta_positiva
+  - id: desligamentos_periodo
+    formula: contagem(linhas) onde status=desligado
+    formato: numero
+    polaridade: alta_negativa
+  - id: turnover
+    formula: customizado
+    formato: percentual
+    polaridade: alta_negativa
+  - id: custo_folha
+    formula: soma(salario) onde status=ativo
+    formato: moeda
+    polaridade: alta_negativa
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Registros por mês"
+        series:
+          - campo_valor: contagem
+            nome: "Registros"
+            cor: acc
+            preenchido: true
+      - tipo: ranking
+        campo: departamento
+        campo_valor: contagem
+        titulo: "Headcount por departamento"
+      - tipo: composicao
+        campo: cargo
+        campo_valor: contagem
+        titulo: "Composição por cargo"
+        formato: numero
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Por departamento"
+    graficos:
+      - tipo: ranking
+        campo: departamento
+        campo_valor: contagem
+        titulo: "Headcount por departamento"
+      - tipo: composicao
+        campo: departamento
+        campo_valor: contagem
+        titulo: "Composição por departamento"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela

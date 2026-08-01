@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("dashtop_tema") || "dark");</script>
+  <title>Dash Top — Confirmar mapeamento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="estilo.css" />
+  <script src="tema.js"></script>
+</head>
+<body>
+  <main>
+    <div class="cabecalho-app">
+      <div class="marca">Dash Top</div>
+      <div class="acoes-cabecalho">
+        <button type="button" class="botao-tema" id="botao-tema" aria-label="Alternar tema"></button>
+      </div>
+    </div>
+
+    <h1>3. Confirme o mapeamento</h1>
+    <p class="subtitulo">Revise as colunas identificadas. Campos obrigatórios sem sugestão aparecem em destaque.</p>
+
+    <div id="lista-campos"></div>
+
+    <p class="erro" id="mensagem-erro" style="display:none"></p>
+    <p class="subtitulo" id="mensagem-sucesso" style="display:none; color: var(--acento)"></p>
+
+    <div class="rodape">
+      <a href="etapa2.html"><button class="secundario" type="button">Voltar</button></a>
+      <button id="botao-confirmar" type="button">Confirmar mapeamento</button>
+    </div>
+  </main>
+
+  <script>
+    const sessao = JSON.parse(localStorage.getItem("dashtop_sessao") || "null");
+    if (!sessao || !sessao.sessao_id || !sessao.categoria_id) {
+      window.location.href = "etapa2.html";
+    }
+
+    const listaCampos = document.getElementById("lista-campos");
+    const mensagemErro = document.getElementById("mensagem-erro");
+    const mensagemSucesso = document.getElementById("mensagem-sucesso");
+    const botaoConfirmar = document.getElementById("botao-confirmar");
+
+    let colunasDetectadas = [];
+
+    async function carregarMapeamento() {
+      try {
+        const resposta = await fetch(`/api/upload/${sessao.sessao_id}/mapeamento`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoria_id: sessao.categoria_id }),
+        });
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(dados.detail || "Erro ao gerar sugestão de mapeamento.");
+        }
+
+        colunasDetectadas = dados.colunas_detectadas;
+        renderizarCampos(dados.campos);
+      } catch (erro) {
+        mensagemErro.textContent = erro.message;
+        mensagemErro.style.display = "block";
+      }
+    }
+
+    function renderizarCampos(campos) {
+      listaCampos.innerHTML = "";
+
+      campos.forEach((campo) => {
+        const semSugestaoObrigatorio = campo.obrigatorio && !campo.coluna_sugerida;
+
+        const card = document.createElement("div");
+        card.className = "card" + (semSugestaoObrigatorio ? " atencao" : "");
+
+        const opcoes = ['<option value="">-- nenhuma --</option>']
+          .concat(
+            colunasDetectadas.map(
+              (coluna) =>
+                `<option value="${coluna}" ${coluna === campo.coluna_sugerida ? "selected" : ""}>${coluna}</option>`
+            )
+          )
+          .join("");
+
+        card.innerHTML = `
+          <div class="linha-campo">
+            <span class="nome">
+              ${campo.nome_exibicao}
+              ${campo.obrigatorio ? '<span class="obrigatorio">(obrigatório)</span>' : ""}
+              ${semSugestaoObrigatorio ? '<span class="tag atencao">Sem sugestão</span>' : ""}
+            </span>
+            <select data-campo-id="${campo.id}">${opcoes}</select>
+          </div>
+        `;
+
+        listaCampos.appendChild(card);
+      });
+    }
+
+    async function confirmarMapeamento() {
+      mensagemErro.style.display = "none";
+      mensagemSucesso.style.display = "none";
+
+      const selects = listaCampos.querySelectorAll("select[data-campo-id]");
+      const mapeamento = Array.from(selects).map((select) => ({
+        campo_id: select.dataset.campoId,
+        coluna: select.value || null,
+      }));
+
+      try {
+        const resposta = await fetch(`/api/upload/${sessao.sessao_id}/mapeamento`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mapeamento }),
+        });
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(dados.detail || "Erro ao confirmar mapeamento.");
+        }
+
+        mensagemSucesso.textContent = dados.mensagem;
+        mensagemSucesso.style.display = "block";
+        botaoConfirmar.disabled = true;
+
+        setTimeout(() => {
+          window.location.href = `etapa4.html?sessao=${sessao.sessao_id}`;
+        }, 600);
+      } catch (erro) {
+        mensagemErro.textContent = erro.message;
+        mensagemErro.style.display = "block";
+      }
+    }
+
+    botaoConfirmar.addEventListener("click", confirmarMapeamento);
+    carregarMapeamento();
+  </script>
+</body>
+</html>

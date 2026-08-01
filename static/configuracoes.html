@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("dashtop_tema") || "dark");</script>
+  <title>Dash Top — Configurações</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="estilo.css" />
+  <script src="tema.js"></script>
+</head>
+<body>
+  <main>
+    <div class="cabecalho-app">
+      <div class="marca">Dash Top</div>
+      <div class="acoes-cabecalho">
+        <button type="button" class="botao-tema" id="botao-tema" aria-label="Alternar tema"></button>
+      </div>
+    </div>
+
+    <h1>Configurações</h1>
+    <p class="subtitulo">Envie o logotipo da sua marca (PNG ou SVG, máx. 2MB). Ele substitui o "Dash Top" no cabeçalho do dashboard.</p>
+
+    <div class="dropzone" id="dropzone">
+      <p id="texto-dropzone">Arraste o logotipo aqui ou clique para selecionar</p>
+      <input type="file" id="input-logo" accept=".png,.svg" style="display:none" />
+    </div>
+
+    <p class="erro" id="mensagem-erro" style="display:none"></p>
+
+    <div class="previa-logo-caixa" id="previa-logo-caixa" style="display:none">
+      <p>Logo atual:</p>
+      <img id="previa-logo" alt="Logo configurada" />
+    </div>
+  </main>
+
+  <script>
+    const dropzone = document.getElementById("dropzone");
+    const input = document.getElementById("input-logo");
+    const textoDropzone = document.getElementById("texto-dropzone");
+    const mensagemErro = document.getElementById("mensagem-erro");
+    const previaCaixa = document.getElementById("previa-logo-caixa");
+    const previaImg = document.getElementById("previa-logo");
+
+    dropzone.addEventListener("click", () => input.click());
+
+    dropzone.addEventListener("dragover", (evento) => {
+      evento.preventDefault();
+      dropzone.classList.add("arrastando");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("arrastando");
+    });
+
+    dropzone.addEventListener("drop", (evento) => {
+      evento.preventDefault();
+      dropzone.classList.remove("arrastando");
+      if (evento.dataTransfer.files.length > 0) {
+        enviarLogo(evento.dataTransfer.files[0]);
+      }
+    });
+
+    input.addEventListener("change", () => {
+      if (input.files.length > 0) {
+        enviarLogo(input.files[0]);
+      }
+    });
+
+    async function enviarLogo(arquivo) {
+      mensagemErro.style.display = "none";
+      textoDropzone.textContent = `Enviando "${arquivo.name}"...`;
+
+      const formData = new FormData();
+      formData.append("arquivo", arquivo);
+
+      try {
+        const resposta = await fetch("/api/logotipo", { method: "POST", body: formData });
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(dados.detail || "Erro ao enviar o logotipo.");
+        }
+
+        mostrarPrevia(dados.url);
+      } catch (erro) {
+        mensagemErro.textContent = erro.message;
+        mensagemErro.style.display = "block";
+      } finally {
+        textoDropzone.textContent = "Arraste o logotipo aqui ou clique para selecionar";
+      }
+    }
+
+    function mostrarPrevia(url) {
+      previaImg.src = `${url}?t=${Date.now()}`;
+      previaCaixa.style.display = "block";
+    }
+
+    async function carregarLogoAtual() {
+      try {
+        const resposta = await fetch("/api/logotipo");
+        const dados = await resposta.json();
+        if (dados.configurado) {
+          mostrarPrevia(dados.url);
+        }
+      } catch (erro) {
+        // sem logo configurada ainda
+      }
+    }
+
+    carregarLogoAtual();
+  </script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("dashtop_tema") || "dark");</script>
+  <title>Dash Top — Escolher categoria</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="estilo.css" />
+  <script src="tema.js"></script>
+</head>
+<body>
+  <main>
+    <div class="cabecalho-app">
+      <div class="cabecalho-esquerda">
+        <a href="etapa1.html" class="link-voltar">← Voltar</a>
+        <div class="marca">Dash Top</div>
+      </div>
+      <div class="acoes-cabecalho">
+        <button type="button" class="botao-tema" id="botao-tema" aria-label="Alternar tema"></button>
+      </div>
+    </div>
+
+    <h1>2. Escolha a categoria</h1>
+    <p class="subtitulo" id="subtitulo">Sugerimos a categoria mais provável com base nas colunas da sua planilha.</p>
+
+    <div id="lista-categorias"></div>
+    <p class="erro" id="mensagem-erro" style="display:none"></p>
+  </main>
+
+  <script>
+    const sessao = JSON.parse(localStorage.getItem("dashtop_sessao") || "null");
+    if (!sessao || !sessao.sessao_id) {
+      window.location.href = "etapa1.html";
+    }
+
+    const listaCategorias = document.getElementById("lista-categorias");
+    const mensagemErro = document.getElementById("mensagem-erro");
+
+    async function carregarSugestao() {
+      try {
+        const resposta = await fetch(`/api/upload/${sessao.sessao_id}/sugestao-categoria`);
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error(dados.detail || "Erro ao buscar sugestão de categoria.");
+        }
+
+        renderizarCategorias(dados);
+      } catch (erro) {
+        mensagemErro.textContent = erro.message;
+        mensagemErro.style.display = "block";
+      }
+    }
+
+    function renderizarCategorias(dados) {
+      listaCategorias.innerHTML = "";
+
+      dados.categorias.forEach((categoria) => {
+        const ehSugerida = categoria.categoria_id === dados.sugestao;
+
+        const card = document.createElement("div");
+        card.className = "card selecionavel" + (ehSugerida ? " sugerida" : "");
+
+        card.innerHTML = `
+          <div class="linha-campo">
+            <span class="nome">${categoria.nome_exibicao}</span>
+            ${ehSugerida ? '<span class="tag">Sugerida</span>' : ""}
+          </div>
+          <p class="subtitulo" style="margin: 8px 0 0">
+            ${categoria.campos_obrigatorios_encontrados} de ${categoria.campos_obrigatorios_total}
+            campos obrigatórios identificados (${Math.round(categoria.confianca * 100)}% de confiança)
+          </p>
+        `;
+
+        card.addEventListener("click", () => escolherCategoria(categoria.categoria_id));
+        listaCategorias.appendChild(card);
+      });
+    }
+
+    async function escolherCategoria(categoriaId) {
+      sessao.categoria_id = categoriaId;
+      localStorage.setItem("dashtop_sessao", JSON.stringify(sessao));
+      window.location.href = "etapa3.html";
+    }
+
+    carregarSugestao();
+  </script>
+</body>
+</html>

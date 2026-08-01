@@ -1,0 +1,88 @@
+categoria: vendas
+nome_exibicao: "Vendas"
+icone: "ti-trending-up"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data da venda"
+    tipo: data
+    obrigatorio: true
+  - id: valor
+    nome_exibicao: "Valor da venda"
+    tipo: numero
+    obrigatorio: true
+  - id: vendedor
+    nome_exibicao: "Vendedor"
+    tipo: texto
+    obrigatorio: false
+  - id: produto
+    nome_exibicao: "Produto / categoria"
+    tipo: texto
+    obrigatorio: true
+  - id: regiao
+    nome_exibicao: "Região"
+    tipo: texto
+    obrigatorio: false
+
+filtros:
+  - periodo
+  - vendedor
+  - produto
+  - regiao
+
+kpis:
+  - id: faturamento
+    formula: soma(valor)
+    formato: moeda
+    polaridade: alta_positiva
+  - id: pedidos
+    formula: contagem(linhas)
+    formato: numero
+    polaridade: alta_positiva
+  - id: ticket_medio
+    formula: media(valor)
+    formato: moeda
+    polaridade: alta_positiva
+  - id: taxa_conversao
+    formula: customizado
+    formato: percentual
+    polaridade: alta_positiva
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Faturamento por mês"
+        series:
+          - campo_valor: valor
+            nome: "Faturamento"
+            cor: acc
+            preenchido: true
+      - tipo: ranking
+        campo: vendedor
+        campo_valor: valor
+        titulo: "Ranking por vendedor"
+      - tipo: composicao
+        campo: produto
+        campo_valor: valor
+        titulo: "Composição por produto"
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Por produto"
+    graficos:
+      - tipo: ranking
+        campo: produto
+        campo_valor: valor
+        titulo: "Ranking por produto"
+      - tipo: composicao
+        campo: produto
+        campo_valor: valor
+        titulo: "Composição por produto"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela

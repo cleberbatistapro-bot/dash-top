@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pandas
+openpyxl
+pyyaml
+python-multipart
+reportlab
+Pillow

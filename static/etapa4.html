@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <script>document.documentElement.setAttribute("data-theme", localStorage.getItem("dashtop_tema") || "dark");</script>
+  <title>Dash Top — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="vendor/flatpickr.min.css" />
+  <link rel="stylesheet" href="vendor/tabler-icons/tabler-icons.min.css" />
+  <link rel="stylesheet" href="estilo.css" />
+  <script src="tema.js"></script>
+</head>
+<body class="dashboard">
+  <main>
+    <h1 id="titulo-dashboard">Seu dashboard</h1>
+
+    <div class="linha-controles nao-exportar">
+      <div class="controles-filtros">
+        <div class="segmentado-periodo">
+          <button type="button" class="seg-item" data-atalho="30d">30d</button>
+          <button type="button" class="seg-item" data-atalho="90d">90d</button>
+          <button type="button" class="seg-item" data-atalho="ano">Este ano</button>
+          <button type="button" class="seg-item" data-atalho="personalizado">Personalizado</button>
+        </div>
+        <div class="campo-filtro" id="campo-data-inicial" style="display:none">
+          <label for="filtro-data-inicial-flatpickr">Data inicial</label>
+          <input type="text" id="filtro-data-inicial-flatpickr" placeholder="dd/mm/aaaa" readonly />
+        </div>
+        <div class="campo-filtro" id="campo-data-final" style="display:none">
+          <label for="filtro-data-final-flatpickr">Data final</label>
+          <input type="text" id="filtro-data-final-flatpickr" placeholder="dd/mm/aaaa" readonly />
+        </div>
+        <input type="hidden" id="filtro-inicio" />
+        <input type="hidden" id="filtro-fim" />
+        <div id="filtros-dinamicos" style="display:contents"></div>
+        <button type="button" class="link-limpar" id="botao-limpar-filtros">Limpar filtros</button>
+      </div>
+      <div class="acoes-cabecalho">
+        <a href="etapa3.html" id="link-voltar" class="link-voltar">← Voltar</a>
+        <button type="button" class="botao-novo" id="botao-novo-dashboard"><i class="ti ti-plus"></i> <span class="texto-botao">Novo dashboard</span></button>
+        <button type="button" class="secundario" id="botao-relatorio"><i class="ti ti-file-text"></i> <span class="texto-botao">Relatório PDF</span></button>
+        <button type="button" class="secundario" id="botao-exportar"><i class="ti ti-download"></i> <span class="texto-botao">Exportar</span></button>
+        <button type="button" class="botao-tema" id="botao-tema" aria-label="Alternar tema"></button>
+      </div>
+    </div>
+
+    <p class="erro" id="mensagem-erro" style="display:none"></p>
+
+    <div class="conteudo-dashboard" id="conteudo-dashboard">
+      <div class="grid-kpis" id="grid-kpis"></div>
+
+      <div class="linha-superior" id="linha-superior"></div>
+      <div class="linha-inferior" id="linha-inferior"></div>
+
+      <div class="card secao-tabela" id="secao-tabela" style="display:none">
+        <h3>Detalhamento</h3>
+        <input type="text" class="busca-tabela" id="busca-tabela" placeholder="Buscar na tabela..." />
+        <div style="overflow-x:auto">
+          <table class="tabela-dados">
+            <thead id="cabecalho-tabela"></thead>
+            <tbody id="corpo-tabela"></tbody>
+          </table>
+        </div>
+        <div class="paginacao">
+          <button type="button" class="secundario" id="botao-pagina-anterior">Anterior</button>
+          <span id="texto-paginacao"></span>
+          <button type="button" class="secundario" id="botao-proxima-pagina">Próxima</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="vendor/chartjs-plugin-datalabels.min.js"></script>
+  <script src="vendor/html2canvas.min.js"></script>
+  <script src="vendor/flatpickr.min.js"></script>
+  <script src="vendor/flatpickr-pt.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessaoId = params.get("sessao");
+
+    if (!sessaoId) {
+      window.location.href = "etapa1.html";
+    }
+
+    let paginaAtual = 1;
+    let dropdownsPopulados = false;
+    let ultimosGraficos = null;
+    let categoriaAtual = null;
+    let atalhoAtivo = "30d";
+    const graficosAtivos = {};
+    const titulosGraficos = {};
+
+    const mensagemErro = document.getElementById("mensagem-erro");
+    const conteudoDashboard = document.getElementById("conteudo-dashboard");
+    const gridKpis = document.getElementById("grid-kpis");
+    const linhaSuperior = document.getElementById("linha-superior");
+    const linhaInferior = document.getElementById("linha-inferior");
+    const secaoTabela = document.getElementById("secao-tabela");
+    const cabecalhoTabela = document.getElementById("cabecalho-tabela");
+    const corpoTabela = document.getElementById("corpo-tabela");
+    const textoPaginacao = document.getElementById("texto-paginacao");
+    const botaoPaginaAnterior = document.getElementById("botao-pagina-anterior");
+    const botaoProximaPagina = document.getElementById("botao-proxima-pagina");
+    const buscaTabela = document.getElementById("busca-tabela");
+
+    const formatadorMoeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+    const formatadorNumero = new Intl.NumberFormat("pt-BR");
+
+    const ICONES_KPI = {
+      faturamento: "ti-cash",
+      pedidos: "ti-shopping-cart",
+      ticket_medio: "ti-receipt",
+      taxa_conversao: "ti-target-arrow",
+      receita_total: "ti-cash",
+      despesa_total: "ti-credit-card",
+      saldo: "ti-scale",
+      margem: "ti-percentage",
+      valor_total_estoque: "ti-cash",
+      produtos_distintos: "ti-package",
+      quantidade_total: "ti-stack-2",
+      giro_medio: "ti-refresh",
+      headcount_ativo: "ti-users",
+      desligamentos_periodo: "ti-user-x",
+      turnover: "ti-repeat",
+      custo_folha: "ti-cash",
+      total_leads: "ti-user-plus",
+      custo_total: "ti-credit-card",
+      cac: "ti-target-arrow",
+      tempo_ciclo_medio: "ti-clock",
+      sla_cumprido_percentual: "ti-shield-check",
+      total_operacoes: "ti-list-check",
+      tickets_abertos: "ti-ticket",
+      tickets_resolvidos: "ti-circle-check",
+      tempo_resposta_medio: "ti-clock",
+      nps_medio: "ti-mood-smile",
+    };
+
+    const ICONES_POR_FORMATO = {
+      moeda: "ti-cash",
+      numero: "ti-hash",
+      percentual: "ti-percentage",
+    };
+
+    function iconeKpi(kpi) {
+      return ICONES_KPI[kpi.id] || ICONES_POR_FORMATO[kpi.formato] || "ti-chart-bar";
+    }
+
+    function filtrosAtuais() {
+      const filtros = {
+        periodo_inicio: document.getElementById("filtro-inicio").value || "",
+        periodo_fim: document.getElementById("filtro-fim").value || "",
+      };
+      document.querySelectorAll("#filtros-dinamicos select").forEach((select) => {
+        filtros[select.dataset.campo] = select.value || "";
+      });
+      return filtros;
+    }
+
+    function renderizarFiltrosDinamicos(filtrosDisponiveis) {
+      const container = document.getElementById("filtros-dinamicos");
+      container.innerHTML = "";
+
+      Object.entries(filtrosDisponiveis).forEach(([campoId, info]) => {
+        const bloco = document.createElement("div");
+        bloco.className = "campo-filtro";
+
+        const label = document.createElement("label");
+        label.setAttribute("for", `filtro-${campoId}`);
+        label.textContent = info.label;
+
+        const select = document.createElement("select");
+        select.id = `filtro-${campoId}`;
+        select.dataset.campo = campoId;
+
+        const opcaoPadrao = document.createElement("option");
+        opcaoPadrao.value = "";
+        opcaoPadrao.textContent = "Todos";
+        select.appendChild(opcaoPadrao);
+
+        info.valores.forEach((valor) => {
+          const opcao = document.createElement("option");
+          opcao.value = valor;
+          opcao.textContent = valor;
+          select.appendChild(opcao);
+        });
+
+        select.addEventListener("change", () => {
+          paginaAtual = 1;
+          buscarDashboard();
+        });
+
+        bloco.appendChild(label);
+        bloco.appendChild(select);
+        container.appendChild(bloco);
+      });
+    }
+
+    function formatarDataISO(data) {
+      return data.toISOString().slice(0, 10);
+    }
+
+    function mensagemAmigavel(erro) {
+      if (erro instanceof TypeError) {
+        return "Não foi possível carregar os dados. Tente novamente.";
+      }
+      return erro.message;
+    }
+
+    const flatpickrInicial = flatpickr("#filtro-data-inicial-flatpickr", {
+      dateFormat: "Y-m-d",
+      altInput: true,
+      altInputClass: "campo-periodo-visivel",
+      altFormat: "d/m/Y",
+      locale: "pt",
+      onChange: (datasSelecionadas) => {
+        if (datasSelecionadas.length === 1) {
+          document.getElementById("filtro-inicio").value = formatarDataISO(datasSelecionadas[0]);
+          flatpickrFinal.set("minDate", datasSelecionadas[0]);
+          paginaAtual = 1;
+          buscarDashboard();
+        }
+      },
+    });
+
+    const flatpickrFinal = flatpickr("#filtro-data-final-flatpickr", {
+      dateFormat: "Y-m-d",
+      altInput: true,
+      altInputClass: "campo-periodo-visivel",
+      altFormat: "d/m/Y",
+      locale: "pt",
+      onChange: (datasSelecionadas) => {
+        if (datasSelecionadas.length === 1) {
+          document.getElementById("filtro-fim").value = formatarDataISO(datasSelecionadas[0]);
+          paginaAtual = 1;
+          buscarDashboard();
+        }
+      },
+    });
+
+    function aplicarAtalhoPeriodo(atalho) {
+      atalhoAtivo = atalho;
+
+      const campoInicial = document.getElementById("campo-data-inicial");
+      const campoFinal = document.getElementById("campo-data-final");
+
+      if (atalho === "personalizado") {
+        campoInicial.style.display = "flex";
+        campoFinal.style.display = "flex";
+        const inicioAtual = document.getElementById("filtro-inicio").value;
+        const fimAtual = document.getElementById("filtro-fim").value;
+        if (inicioAtual) {
+          flatpickrInicial.setDate(inicioAtual, false);
+          flatpickrFinal.set("minDate", inicioAtual);
+        }
+        if (fimAtual) {
+          flatpickrFinal.setDate(fimAtual, false);
+        }
+      } else {
+        campoInicial.style.display = "none";
+        campoFinal.style.display = "none";
+
+        const hoje = new Date();
+        let inicio = new Date(hoje);
+        if (atalho === "30d") {
+          inicio.setDate(inicio.getDate() - 29);
+        } else if (atalho === "90d") {
+          inicio.setDate(inicio.getDate() - 89);
+        } else if (atalho === "ano") {
+          inicio = new Date(hoje.getFullYear(), 0, 1);
+        }
+        document.getElementById("filtro-inicio").value = formatarDataISO(inicio);
+        document.getElementById("filtro-fim").value = formatarDataISO(hoje);
+      }
+
+      document.querySelectorAll(".seg-item").forEach((botao) => {
+        botao.classList.toggle("ativo", botao.dataset.atalho === atalho);
+      });
+
+      paginaAtual = 1;
+      buscarDashboard();
+    }
+
+    document.querySelectorAll(".seg-item").forEach((botao) => {
+      botao.addEventListener("click", () => aplicarAtalhoPeriodo(botao.dataset.atalho));
+    });
+
+    document.getElementById("botao-limpar-filtros").addEventListener("click", () => {
+      document.querySelectorAll("#filtros-dinamicos select").forEach((select) => {
+        select.value = "";
+      });
+      aplicarAtalhoPeriodo("30d");
+    });
+
+    async function buscarDashboard() {
+      mensagemErro.style.display = "none";
+      conteudoDashboard.classList.add("carregando");
+
+      const filtros = filtrosAtuais();
+      const query = new URLSearchParams();
+      Object.entries(filtros).forEach(([chave, valor]) => {
+        if (valor) query.set(chave, valor);
+      });
+      const queryTabela = new URLSearchParams(query);
+      queryTabela.set("pagina", paginaAtual);
+
+      try {
+        const [respExecutivo, respDetalhado] = await Promise.all([
+          fetch(`/api/dashboard/${sessaoId}/executivo?${query.toString()}`),
+          fetch(`/api/dashboard/${sessaoId}/detalhado?${queryTabela.toString()}`),
+        ]);
+
+        const [dadosExecutivo, dadosDetalhado] = await Promise.all([
+          respExecutivo.json(),
+          respDetalhado.json(),
+        ]);
+
+        if (!respExecutivo.ok) throw new Error(dadosExecutivo.detail || "Erro ao carregar o dashboard.");
+        if (!respDetalhado.ok) throw new Error(dadosDetalhado.detail || "Erro ao carregar o dashboard.");
+
+        document.getElementById("titulo-dashboard").textContent = `Seu dashboard de ${dadosExecutivo.categoria_nome_exibicao}`;
+
+        if (!dropdownsPopulados) {
+          renderizarFiltrosDinamicos(dadosExecutivo.filtros_disponiveis);
+          dropdownsPopulados = true;
+        }
+
+        categoriaAtual = dadosExecutivo.categoria_id;
+        ultimosGraficos = dadosExecutivo.graficos;
+
+        renderizarKpis(dadosExecutivo.kpis);
+        renderizarGraficosConsolidados(dadosExecutivo.graficos);
+        renderizarTabela(dadosDetalhado.tabela);
+      } catch (erro) {
+        mensagemErro.textContent = mensagemAmigavel(erro);
+        mensagemErro.style.display = "block";
+      } finally {
+        conteudoDashboard.classList.remove("carregando");
+      }
+    }
+
+    function formatarValorKpi(kpi) {
+      if (kpi.formato === "numero") {
+        return formatadorNumero.format(kpi.valor);
+      }
+      if (kpi.formato === "percentual") {
+        return `${formatadorNumero.format(kpi.valor)}%`;
+      }
+      return formatadorMoeda.format(kpi.valor);
+    }
+
+    function renderizarKpis(kpis) {
+      gridKpis.innerHTML = "";
+      kpis.forEach((kpi) => {
+        const card = document.createElement("div");
+        card.className = "card kpi";
+
+        const label = document.createElement("div");
+        label.className = "label rotulo-com-icone";
+        const icone = document.createElement("i");
+        icone.className = `ti ${iconeKpi(kpi)}`;
+        const textoLabel = document.createElement("span");
+        textoLabel.textContent = kpi.label;
+        label.appendChild(icone);
+        label.appendChild(textoLabel);
+
+        const valor = document.createElement("div");
+        valor.className = "valor";
+        if (kpi.destacar_valor_por_sinal && kpi.valor < 0) {
+          valor.classList.add("negativa");
+        }
+        valor.textContent = formatarValorKpi(kpi);
+
+        card.appendChild(label);
+        card.appendChild(valor);
+
+        const variacao = document.createElement("div");
+        if (kpi.variacao_percentual === null || kpi.variacao_percentual === undefined) {
+          variacao.className = "variacao";
+          variacao.textContent = "Sem período anterior para comparar";
+        } else {
+          const seta = kpi.tendencia === "alta" ? "▲" : "▼";
+          const classeCor = kpi.cor === "positiva" ? "alta" : kpi.cor === "negativa" ? "baixa" : "";
+          variacao.className = "variacao " + classeCor;
+          variacao.textContent = `${seta} ${Math.abs(kpi.variacao_percentual).toFixed(1)}% vs. período anterior`;
+        }
+        card.appendChild(variacao);
+
+        gridKpis.appendChild(card);
+      });
+    }
+
+    function hexParaRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function formatarAbreviado(valor) {
+      const absoluto = Math.abs(valor);
+      if (absoluto >= 1000000) {
+        const casas = absoluto % 1000000 === 0 ? 0 : 1;
+        return (valor / 1000000).toFixed(casas) + "M";
+      }
+      if (absoluto >= 1000) {
+        const casas = absoluto % 1000 === 0 ? 0 : 1;
+        return (valor / 1000).toFixed(casas) + "k";
+      }
+      return String(Math.round(valor));
+    }
+
+    function corTextoContraste(cor) {
+      let r, g, b;
+      if (cor.startsWith("#")) {
+        r = parseInt(cor.slice(1, 3), 16);
+        g = parseInt(cor.slice(3, 5), 16);
+        b = parseInt(cor.slice(5, 7), 16);
+      } else {
+        [r, g, b] = cor.match(/[\d.]+/g).map(Number);
+      }
+      const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminancia > 0.6 ? "#06211D" : "#F5F7FA";
+    }
+
+    function formatarValorPorFormato(valor, formato) {
+      if (formato === "numero") return formatadorNumero.format(valor);
+      if (formato === "percentual") return `${formatadorNumero.format(valor)}%`;
+      return formatadorMoeda.format(valor);
+    }
+
+    function obterPaletaGraficos() {
+      const claro = document.documentElement.getAttribute("data-theme") === "light";
+      return claro
+        ? {
+            acento: "#0F9E90",
+            acentoSecundario: "#6552D6",
+            ambar: "#E6B43C",
+            cor4: "#C94F66",
+            cor5: "#2F7CC4",
+            neutro: "#9AA0B2",
+            neutroBarra: "#D5D9E2",
+            trilhaRanking: "#E9ECF2",
+            subida: "#1E9556",
+            descida: "#D63A32",
+            fundo: "#DDE1E9",
+            superficie: "#FFFFFF",
+            texto: "#0D0F16",
+            textoSecundario: "#4A4F5E",
+            textoGrafico: "#383D4A",
+            borda: "#C7CBD6",
+            grade: "#E4E7EE",
+          }
+        : {
+            acento: "#2FD4C4",
+            acentoSecundario: "#9B8DF0",
+            ambar: "#E8B948",
+            cor4: "#E8748A",
+            cor5: "#5FA8E8",
+            neutro: "#4A5164",
+            neutroBarra: "#2A3040",
+            trilhaRanking: "#1A1F2C",
+            subida: "#3FC97F",
+            descida: "#F0665F",
+            fundo: "#0A0D14",
+            superficie: "#12151F",
+            texto: "#F1F3F7",
+            textoSecundario: "#9297A8",
+            textoGrafico: "#B4B9C7",
+            borda: "#262C3D",
+            grade: "#1B2030",
+          };
+    }
+
+    function opcoesBase(mostrarLegenda) {
+      const paleta = obterPaletaGraficos();
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            display: mostrarLegenda,
+            labels: { color: paleta.textoSecundario, usePointStyle: true, boxWidth: 8 },
+          },
+          tooltip: {
+            backgroundColor: paleta.superficie,
+            borderColor: paleta.borda,
+            borderWidth: 1,
+            titleColor: paleta.texto,
+            bodyColor: paleta.texto,
+            padding: 10,
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: paleta.textoGrafico, autoSkip: false },
+            grid: { display: false, drawTicks: true, tickLength: 4, tickColor: hexParaRgba(paleta.borda, 0.6) },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: paleta.textoGrafico,
+              maxTicksLimit: 4,
+              callback: (valor) => formatarAbreviado(valor),
+            },
+            grid: { color: hexParaRgba(paleta.borda, 0.4), lineWidth: 1 },
+          },
+        },
+      };
+    }
+
+    function criarCartaoGrafico(chave, titulo) {
+      const card = document.createElement("div");
+      card.className = "card grafico-card";
+
+      const tituloEl = document.createElement("h3");
+      tituloEl.textContent = titulo;
+      card.appendChild(tituloEl);
+
+      const caixa = document.createElement("div");
+      caixa.className = "caixa-canvas";
+      caixa.id = `caixa-${chave}`;
+      card.appendChild(caixa);
+
+      return card;
+    }
+
+    function renderizarUmGrafico(container, chave, dados) {
+      const card = criarCartaoGrafico(chave, dados.titulo || chave);
+      container.appendChild(card);
+      const caixa = document.getElementById(`caixa-${chave}`);
+
+      if (dados.erro) {
+        const mensagem = document.createElement("p");
+        mensagem.className = "grafico-erro";
+        mensagem.textContent = dados.erro;
+        caixa.appendChild(mensagem);
+        return card;
+      }
+
+      const canvas = document.createElement("canvas");
+      caixa.appendChild(canvas);
+      titulosGraficos[chave] = dados.titulo || chave;
+
+      if (dados.tipo === "barras_mensais_pareadas") {
+        graficosAtivos[chave] = criarGraficoLinhaPrincipal(canvas, dados);
+      } else if (dados.tipo === "saldo_mensal") {
+        graficosAtivos[chave] = criarGraficoSaldoMensal(canvas, dados);
+      } else if (dados.tipo === "ranking") {
+        caixa.classList.add("horizontal");
+        graficosAtivos[chave] = criarGraficoRanking(canvas, dados);
+      } else if (dados.tipo === "composicao") {
+        graficosAtivos[chave] = criarGraficoComposicao(canvas, dados);
+      }
+
+      return card;
+    }
+
+    function renderizarGraficosConsolidados(graficos) {
+      Object.keys(graficosAtivos).forEach((chave) => {
+        graficosAtivos[chave].destroy();
+        delete graficosAtivos[chave];
+      });
+      resetarDestaqueRanking = null;
+      linhaSuperior.innerHTML = "";
+      linhaInferior.innerHTML = "";
+
+      const entradas = Object.entries(graficos);
+
+      const principal = entradas.find(([, dados]) => dados.tipo === "barras_mensais_pareadas");
+      if (principal) renderizarUmGrafico(linhaSuperior, principal[0], principal[1]);
+
+      const ranking = entradas.find(([, dados]) => dados.tipo === "ranking");
+      if (ranking) renderizarUmGrafico(linhaSuperior, ranking[0], ranking[1]);
+
+      const saldo = entradas.find(([, dados]) => dados.tipo === "saldo_mensal");
+      if (saldo) renderizarUmGrafico(linhaInferior, saldo[0], saldo[1]);
+
+      const composicao = entradas.find(([, dados]) => dados.tipo === "composicao");
+      if (composicao) renderizarUmGrafico(linhaInferior, composicao[0], composicao[1]);
+    }
+
+    function criarGraficoLinhaPrincipal(canvas, dados) {
+      const ctx = canvas.getContext("2d");
+      const paleta = obterPaletaGraficos();
+      const mapaCores = {
+        acc: paleta.acento,
+        v: paleta.acentoSecundario,
+        amb: paleta.ambar,
+        c4: paleta.cor4,
+        c5: paleta.cor5,
+      };
+
+      const duasSeries = dados.datasets.length >= 2;
+      const totalPontos = dados.labels.length;
+      const denso = totalPontos > 20;
+      const muitosPontos = totalPontos > 12;
+
+      const serieAValores = dados.datasets[0].data;
+      let indicesRotuloPrincipal = null;
+      let ordemRotulo = null;
+      if (muitosPontos) {
+        const indiceMax = serieAValores.reduce((m, v, i) => (v > serieAValores[m] ? i : m), 0);
+        const indiceMin = serieAValores.reduce((m, v, i) => (v < serieAValores[m] ? i : m), 0);
+        indicesRotuloPrincipal = new Set([0, serieAValores.length - 1, indiceMax, indiceMin]);
+
+        if (denso) {
+          for (let i = 0; i < serieAValores.length; i += 3) {
+            indicesRotuloPrincipal.add(i);
+          }
+          const ordenados = [...indicesRotuloPrincipal].sort((a, b) => a - b);
+          ordemRotulo = new Map(ordenados.map((indice, posicao) => [indice, posicao]));
+        }
+      }
+
+      const datasets = dados.datasets.map((serie, indice) => {
+        const principal = indice === 0;
+        const cor = mapaCores[serie.cor] || paleta.acento;
+        const configuracao = {
+          label: serie.label,
+          data: serie.data,
+          borderColor: cor,
+          backgroundColor: "transparent",
+          fill: false,
+          tension: 0.15,
+          borderWidth: principal ? 1.5 : 1.25,
+          borderDash: principal ? undefined : [4, 3],
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointBackgroundColor: cor,
+          pointBorderColor: paleta.superficie,
+          pointBorderWidth: 2,
+          datalabels: {
+            display: (contexto) => principal && (!muitosPontos || indicesRotuloPrincipal.has(contexto.dataIndex)),
+            anchor: "end",
+            align: "top",
+            offset: (contexto) => {
+              if (!denso) return 6;
+              const posicao = ordemRotulo.get(contexto.dataIndex) ?? 0;
+              return posicao % 2 === 0 ? 6 : 20;
+            },
+            color: paleta.acento,
+            font: { size: denso ? 8.5 : 11, weight: "500" },
+            formatter: (valor) => formatarAbreviado(valor),
+          },
+        };
+
+        if (principal) {
+          const gradiente = ctx.createLinearGradient(0, 0, 0, 260);
+          gradiente.addColorStop(0, hexParaRgba(cor, 0.28));
+          gradiente.addColorStop(1, hexParaRgba(cor, 0));
+          configuracao.backgroundColor = gradiente;
+          configuracao.fill = true;
+        }
+
+        return configuracao;
+      });
+
+      const baseOpcoes = opcoesBase(duasSeries);
+      const opcoes = muitosPontos
+        ? {
+            ...baseOpcoes,
+            layout: { padding: { top: denso ? 40 : 26, right: 20, left: 12 } },
+            scales: {
+              ...baseOpcoes.scales,
+              x: {
+                ...baseOpcoes.scales.x,
+                ticks: {
+                  ...baseOpcoes.scales.x.ticks,
+                  autoSkip: true,
+                  maxRotation: 45,
+                  minRotation: 45,
+                  maxTicksLimit: 10,
+                },
+              },
+            },
+          }
+        : { ...baseOpcoes, layout: { padding: { top: 26, right: 20, left: 12 } } };
+
+      return new Chart(ctx, {
+        type: "line",
+        data: { labels: dados.labels, datasets },
+        options: opcoes,
+        plugins: [ChartDataLabels],
+      });
+    }
+
+    function criarGraficoSaldoMensal(canvas, dados) {
+      const ctx = canvas.getContext("2d");
+      const paleta = obterPaletaGraficos();
+      const valores = dados.datasets[0].data;
+      const muitosPontos = valores.length > 12;
+
+      let indicesRotulo = null;
+      if (muitosPontos) {
+        const indiceMax = valores.reduce((m, v, i) => (v > valores[m] ? i : m), 0);
+        const indiceMin = valores.reduce((m, v, i) => (v < valores[m] ? i : m), 0);
+        indicesRotulo = new Set([0, valores.length - 1, indiceMax, indiceMin]);
+      }
+
+      const minValor = Math.min(...valores, 0);
+      const maxValor = Math.max(...valores, 0);
+      const folga = (maxValor - minValor) * 0.18 || 1;
+
+      const baseOpcoes = opcoesBase(false);
+      const escalaY = {
+        ...baseOpcoes.scales.y,
+        beginAtZero: false,
+        suggestedMin: minValor - folga,
+        suggestedMax: maxValor + folga,
+      };
+
+      const opcoes = muitosPontos
+        ? {
+            ...baseOpcoes,
+            layout: { padding: { top: 26, right: 12, left: 12, bottom: 26 } },
+            scales: {
+              ...baseOpcoes.scales,
+              y: escalaY,
+              x: {
+                ...baseOpcoes.scales.x,
+                ticks: {
+                  ...baseOpcoes.scales.x.ticks,
+                  autoSkip: true,
+                  maxRotation: 45,
+                  minRotation: 45,
+                  maxTicksLimit: 10,
+                },
+              },
+            },
+          }
+        : {
+            ...baseOpcoes,
+            layout: { padding: { top: 26, right: 12, left: 12, bottom: 26 } },
+            scales: { ...baseOpcoes.scales, y: escalaY },
+          };
+
+      return new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: dados.labels,
+          datasets: [{
+            label: dados.datasets[0].label,
+            data: valores,
+            backgroundColor: valores.map((valor) => (valor >= 0 ? paleta.subida : paleta.descida)),
+            borderRadius: 3,
+            maxBarThickness: 26,
+            datalabels: {
+              display: (contexto) => !muitosPontos || indicesRotulo.has(contexto.dataIndex),
+              anchor: (contexto) => (valores[contexto.dataIndex] >= 0 ? "end" : "start"),
+              align: (contexto) => (valores[contexto.dataIndex] >= 0 ? "top" : "bottom"),
+              offset: 4,
+              color: (contexto) => (valores[contexto.dataIndex] >= 0 ? paleta.subida : paleta.descida),
+              font: { size: 10, weight: "600" },
+              formatter: (valor) => formatarAbreviado(valor),
+            },
+          }],
+        },
+        options: opcoes,
+        plugins: [ChartDataLabels],
+      });
+    }
+
+    let resetarDestaqueRanking = null;
+
+    function criarGraficoRanking(canvas, dados) {
+      const ctx = canvas.getContext("2d");
+      const paleta = obterPaletaGraficos();
+      const valores = dados.datasets[0].data;
+      const maximo = Math.max(...valores) * 1.05;
+      const opacidadesPorRank = [1, 0.75, 0.65, 0.55, 0.45, 0.4];
+      let indiceClicado = null;
+
+      const indiceAtivo = () => {
+        if (indiceClicado !== null) return indiceClicado;
+        if (dados.selecionado) {
+          const posicao = dados.labels.indexOf(dados.selecionado);
+          return posicao >= 0 ? posicao : null;
+        }
+        return null;
+      };
+
+      const corPorIndice = (indice) => {
+        const ativo = indiceAtivo();
+        if (ativo === null) {
+          const opacidade = opacidadesPorRank[indice] ?? opacidadesPorRank[opacidadesPorRank.length - 1];
+          return hexParaRgba(paleta.acento, opacidade);
+        }
+        return indice === ativo ? paleta.acento : paleta.neutroBarra;
+      };
+
+      const calcularCores = () => valores.map((_, indice) => corPorIndice(indice));
+
+      const aplicarDestaque = (grafico) => {
+        grafico.data.datasets[0].backgroundColor = calcularCores();
+        grafico.update();
+      };
+
+      const dataTrack = valores.map((v) => Math.max(maximo - v, 0));
+
+      const grafico = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: dados.labels,
+          datasets: [
+            {
+              label: dados.datasets[0].label,
+              data: valores,
+              backgroundColor: calcularCores(),
+              stack: "total",
+              borderRadius: 3,
+              maxBarThickness: 22,
+              datalabels: { display: false },
+            },
+            {
+              label: "trilha",
+              data: dataTrack,
+              backgroundColor: paleta.trilhaRanking,
+              stack: "total",
+              borderRadius: 3,
+              maxBarThickness: 22,
+              datalabels: {
+                display: true,
+                anchor: "end",
+                align: "right",
+                offset: 6,
+                color: paleta.texto,
+                font: { size: 12, weight: "500" },
+                formatter: (_valor, contexto) => formatarAbreviado(valores[contexto.dataIndex]),
+              },
+            },
+          ],
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          layout: { padding: { right: 60 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: paleta.superficie,
+              borderColor: paleta.borda,
+              borderWidth: 1,
+              titleColor: paleta.texto,
+              bodyColor: paleta.texto,
+              padding: 10,
+              filter: (item) => item.datasetIndex === 0,
+              callbacks: { label: (item) => formatarAbreviado(valores[item.dataIndex]) },
+            },
+          },
+          scales: {
+            x: { stacked: true, display: false, max: maximo },
+            y: {
+              stacked: true,
+              ticks: { color: paleta.textoSecundario, font: { size: 12 } },
+              grid: { display: false },
+            },
+          },
+          onClick: (evento, elementos) => {
+            if (elementos.length === 0) return;
+            const indice = elementos[0].index;
+            indiceClicado = indiceClicado === indice ? null : indice;
+            aplicarDestaque(grafico);
+          },
+        },
+        plugins: [ChartDataLabels],
+      });
+
+      resetarDestaqueRanking = () => {
+        indiceClicado = null;
+        aplicarDestaque(grafico);
+      };
+
+      return grafico;
+    }
+
+    document.addEventListener("click", (evento) => {
+      if (resetarDestaqueRanking && !evento.target.closest('[id^="caixa-ranking"]')) {
+        resetarDestaqueRanking();
+      }
+    });
+
+    function criarGraficoComposicao(canvas, dados) {
+      const ctx = canvas.getContext("2d");
+      const paleta = obterPaletaGraficos();
+      const labels = dados.labels;
+      const percentuais = dados.datasets[0].data;
+      const absolutos = dados.valores_absolutos;
+      const formato = dados.formato || "moeda";
+
+      const coresFixas = [paleta.acento, paleta.acentoSecundario, paleta.ambar, paleta.cor4, paleta.cor5];
+      const cores = labels.map((rotulo, indice) => {
+        if (rotulo !== "Outros" && indice < coresFixas.length) return coresFixas[indice];
+        const passoNeutro = indice - coresFixas.length;
+        const opacidade = Math.max(0.9 - passoNeutro * 0.2, 0.35);
+        return hexParaRgba(paleta.borda, opacidade);
+      });
+
+      return new Chart(ctx, {
+        type: "pie",
+        data: {
+          labels,
+          datasets: [{
+            data: percentuais,
+            backgroundColor: cores,
+            borderColor: paleta.superficie,
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: "right",
+              labels: {
+                color: paleta.texto,
+                usePointStyle: false,
+                boxWidth: 10,
+                boxHeight: 10,
+                generateLabels: (chart) => labels.map((rotulo, indice) => ({
+                  text: `${rotulo} · ${formatarValorPorFormato(absolutos[indice], formato)}`,
+                  fillStyle: cores[indice],
+                  strokeStyle: cores[indice],
+                  fontColor: paleta.texto,
+                  lineWidth: 0,
+                  index: indice,
+                })),
+              },
+            },
+            tooltip: {
+              backgroundColor: paleta.superficie,
+              borderColor: paleta.borda,
+              borderWidth: 1,
+              titleColor: paleta.texto,
+              bodyColor: paleta.texto,
+              padding: 10,
+              callbacks: { label: (item) => `${item.label}: ${item.raw}%` },
+            },
+            datalabels: {
+              display: (contexto) => percentuais[contexto.dataIndex] >= 4,
+              color: (contexto) => corTextoContraste(cores[contexto.dataIndex]),
+              font: { size: 12, weight: "600" },
+              formatter: (valor) => `${valor}%`,
+            },
+          },
+        },
+        plugins: [ChartDataLabels],
+      });
+    }
+
+    function renderizarTabela(tabela) {
+      buscaTabela.value = "";
+
+      if (!tabela) {
+        secaoTabela.style.display = "none";
+        return;
+      }
+
+      secaoTabela.style.display = "block";
+
+      cabecalhoTabela.innerHTML = "";
+      const linhaCabecalho = document.createElement("tr");
+      tabela.colunas.forEach((coluna) => {
+        const th = document.createElement("th");
+        th.textContent = coluna.nome_exibicao;
+        linhaCabecalho.appendChild(th);
+      });
+      cabecalhoTabela.appendChild(linhaCabecalho);
+
+      corpoTabela.innerHTML = "";
+      tabela.linhas.forEach((linha) => {
+        const tr = document.createElement("tr");
+        tabela.colunas.forEach((coluna) => {
+          const td = document.createElement("td");
+          const valor = linha[coluna.id];
+          td.textContent = valor === null || valor === undefined ? "-" : valor;
+          tr.appendChild(td);
+        });
+        corpoTabela.appendChild(tr);
+      });
+
+      const totalPaginas = tabela.total_paginas;
+      textoPaginacao.textContent = `Página ${tabela.pagina} de ${totalPaginas} (${tabela.total_linhas} linhas)`;
+      botaoPaginaAnterior.disabled = tabela.pagina <= 1;
+      botaoProximaPagina.disabled = tabela.pagina >= totalPaginas;
+    }
+
+    buscaTabela.addEventListener("input", () => {
+      const termo = buscaTabela.value.trim().toLowerCase();
+      Array.from(corpoTabela.children).forEach((linha) => {
+        const texto = linha.textContent.toLowerCase();
+        linha.style.display = texto.includes(termo) ? "" : "none";
+      });
+    });
+
+    botaoPaginaAnterior.addEventListener("click", () => {
+      if (paginaAtual > 1) {
+        paginaAtual -= 1;
+        buscarDashboard();
+      }
+    });
+
+    botaoProximaPagina.addEventListener("click", () => {
+      paginaAtual += 1;
+      buscarDashboard();
+    });
+
+    document.addEventListener("dashtop:tema-mudou", () => {
+      if (ultimosGraficos) {
+        renderizarGraficosConsolidados(ultimosGraficos);
+      }
+    });
+
+    async function exportarDashboard() {
+      const botaoExportar = document.getElementById("botao-exportar");
+      const textoExportar = botaoExportar.querySelector(".texto-botao");
+      botaoExportar.disabled = true;
+      textoExportar.textContent = "Exportando...";
+
+      try {
+        const paleta = obterPaletaGraficos();
+        const canvas = await html2canvas(document.querySelector("main"), {
+          backgroundColor: paleta.fundo,
+          ignoreElements: (el) => el.classList && el.classList.contains("nao-exportar"),
+          scale: 2,
+        });
+
+        const dataFormatada = new Date().toISOString().slice(0, 10);
+        const nomeArquivo = `dashtop-${categoriaAtual || "dashboard"}-${dataFormatada}.png`;
+
+        const link = document.createElement("a");
+        link.download = nomeArquivo;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      } finally {
+        botaoExportar.disabled = false;
+        textoExportar.textContent = "Exportar";
+      }
+    }
+
+    document.getElementById("botao-exportar").addEventListener("click", exportarDashboard);
+
+    async function gerarRelatorioPDF() {
+      const botaoRelatorio = document.getElementById("botao-relatorio");
+      const textoRelatorio = botaoRelatorio.querySelector(".texto-botao");
+      botaoRelatorio.disabled = true;
+      textoRelatorio.textContent = "Gerando...";
+
+      try {
+        const graficosPayload = {};
+        Object.entries(graficosAtivos).forEach(([chave, grafico]) => {
+          graficosPayload[chave] = {
+            titulo: titulosGraficos[chave] || chave,
+            imagem: grafico.toBase64Image(),
+          };
+        });
+
+        const resposta = await fetch(`/api/relatorio/${sessaoId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filtros: filtrosAtuais(), graficos: graficosPayload }),
+        });
+
+        if (!resposta.ok) {
+          const erro = await resposta.json();
+          throw new Error(erro.detail || "Erro ao gerar o relatório.");
+        }
+
+        const blob = await resposta.blob();
+        const url = URL.createObjectURL(blob);
+        const dataFormatada = new Date().toISOString().slice(0, 10);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `relatorio-dashtop-${categoriaAtual || "dashboard"}-${dataFormatada}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (erro) {
+        mensagemErro.textContent = mensagemAmigavel(erro);
+        mensagemErro.style.display = "block";
+      } finally {
+        botaoRelatorio.disabled = false;
+        textoRelatorio.textContent = "Relatório PDF";
+      }
+    }
+
+    document.getElementById("botao-relatorio").addEventListener("click", gerarRelatorioPDF);
+
+    document.getElementById("botao-novo-dashboard").addEventListener("click", () => {
+      localStorage.removeItem("dashtop_sessao");
+      window.location.href = "etapa1.html";
+    });
+
+    aplicarAtalhoPeriodo("30d");
+  </script>
+</body>
+</html>

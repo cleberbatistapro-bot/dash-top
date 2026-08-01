@@ -1,0 +1,95 @@
+categoria: financeiro
+nome_exibicao: "Financeiro"
+icone: "ti-cash"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data"
+    tipo: data
+    obrigatorio: true
+  - id: receita
+    nome_exibicao: "Receita"
+    tipo: numero
+    obrigatorio: true
+  - id: despesa
+    nome_exibicao: "Despesa"
+    tipo: numero
+    obrigatorio: true
+  - id: centro_custo
+    nome_exibicao: "Centro de custo"
+    tipo: texto
+    obrigatorio: false
+  - id: tipo_conta
+    nome_exibicao: "Tipo de conta"
+    tipo: texto
+    obrigatorio: false
+
+filtros:
+  - periodo
+  - centro_custo
+  - tipo_conta
+
+kpis:
+  - id: receita_total
+    formula: soma(receita)
+    formato: moeda
+    polaridade: alta_positiva
+  - id: despesa_total
+    formula: soma(despesa)
+    formato: moeda
+    polaridade: alta_negativa
+  - id: saldo
+    formula: soma(receita) - soma(despesa)
+    formato: moeda
+    polaridade: sinal_do_valor
+  - id: margem
+    formula: customizado
+    formato: percentual
+    polaridade: sinal_do_valor
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Receita x despesa por mês"
+        series:
+          - campo_valor: receita
+            nome: "Receita"
+            cor: acc
+            preenchido: true
+          - campo_valor: despesa
+            nome: "Despesa"
+            cor: c4
+            preenchido: false
+      - tipo: saldo_mensal
+        campo_valor_a: receita
+        campo_valor_b: despesa
+        titulo: "Saldo por mês"
+      - tipo: ranking
+        campo: centro_custo
+        campo_valor: despesa
+        titulo: "Despesa por centro de custo"
+      - tipo: composicao
+        campo: tipo_conta
+        campo_valor: receita
+        titulo: "Composição por tipo de conta"
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Por centro de custo"
+    graficos:
+      - tipo: ranking
+        campo: centro_custo
+        campo_valor: despesa
+        titulo: "Despesa por centro de custo"
+      - tipo: composicao
+        campo: centro_custo
+        campo_valor: despesa
+        titulo: "Composição por centro de custo"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela

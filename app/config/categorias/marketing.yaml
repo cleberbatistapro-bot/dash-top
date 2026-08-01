@@ -1,0 +1,91 @@
+categoria: marketing
+nome_exibicao: "Marketing"
+icone: "ti-speakerphone"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data"
+    tipo: data
+    obrigatorio: true
+  - id: canal
+    nome_exibicao: "Canal"
+    tipo: texto
+    obrigatorio: true
+  - id: campanha
+    nome_exibicao: "Campanha"
+    tipo: texto
+    obrigatorio: false
+  - id: leads
+    nome_exibicao: "Leads"
+    tipo: numero
+    obrigatorio: true
+  - id: custo
+    nome_exibicao: "Custo"
+    tipo: numero
+    obrigatorio: true
+  - id: conversoes
+    nome_exibicao: "Conversões"
+    tipo: numero
+    obrigatorio: false
+
+filtros:
+  - periodo
+  - canal
+  - campanha
+
+kpis:
+  - id: total_leads
+    formula: soma(leads)
+    formato: numero
+    polaridade: alta_positiva
+  - id: custo_total
+    formula: soma(custo)
+    formato: moeda
+    polaridade: alta_negativa
+  - id: cac
+    formula: soma(custo) / soma(conversoes)
+    formato: moeda
+    polaridade: alta_negativa
+  - id: taxa_conversao
+    formula: soma(conversoes) / soma(leads)
+    formato: percentual
+    polaridade: alta_positiva
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Leads por mês"
+        series:
+          - campo_valor: leads
+            nome: "Leads"
+            cor: acc
+            preenchido: true
+      - tipo: ranking
+        campo: canal
+        campo_valor: custo
+        titulo: "Custo por canal"
+      - tipo: composicao
+        campo: campanha
+        campo_valor: leads
+        titulo: "Leads por campanha"
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Por canal"
+    graficos:
+      - tipo: ranking
+        campo: canal
+        campo_valor: leads
+        titulo: "Leads por canal"
+      - tipo: composicao
+        campo: canal
+        campo_valor: custo
+        titulo: "Composição de custo por canal"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela

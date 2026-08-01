@@ -1,0 +1,92 @@
+categoria: atendimento
+nome_exibicao: "Atendimento"
+icone: "ti-headset"
+
+campos_esperados:
+  - id: data
+    nome_exibicao: "Data"
+    tipo: data
+    obrigatorio: true
+  - id: canal
+    nome_exibicao: "Canal"
+    tipo: texto
+    obrigatorio: true
+  - id: categoria_ticket
+    nome_exibicao: "Categoria do ticket"
+    tipo: texto
+    obrigatorio: false
+  - id: tempo_resposta_horas
+    nome_exibicao: "Tempo de resposta (horas)"
+    tipo: numero
+    obrigatorio: true
+  - id: nota_satisfacao
+    nome_exibicao: "Nota de satisfação (0-10)"
+    tipo: numero
+    obrigatorio: false
+  - id: status
+    nome_exibicao: "Status (aberto/resolvido)"
+    tipo: texto
+    obrigatorio: true
+
+filtros:
+  - periodo
+  - canal
+  - categoria_ticket
+
+kpis:
+  - id: tickets_abertos
+    formula: contagem(linhas) onde status=aberto
+    formato: numero
+    polaridade: alta_negativa
+  - id: tickets_resolvidos
+    formula: contagem(linhas) onde status=resolvido
+    formato: numero
+    polaridade: alta_positiva
+  - id: tempo_resposta_medio
+    formula: media(tempo_resposta_horas)
+    formato: numero
+    polaridade: alta_negativa
+  - id: nps_medio
+    formula: media(nota_satisfacao)
+    formato: numero
+    polaridade: alta_positiva
+
+versoes_dashboard:
+  - id: executivo
+    nome: "Visão executiva"
+    graficos:
+      - tipo: barras_mensais_pareadas
+        titulo: "Tickets por mês"
+        series:
+          - campo_valor: contagem
+            nome: "Tickets"
+            cor: acc
+            preenchido: true
+      - tipo: ranking
+        campo: canal
+        campo_valor: contagem
+        titulo: "Tickets por canal"
+      - tipo: composicao
+        campo: categoria_ticket
+        campo_valor: contagem
+        titulo: "Composição por categoria de ticket"
+        formato: numero
+  - id: detalhado
+    nome: "Detalhado"
+    graficos:
+      - tipo: tabela
+  - id: ranking
+    nome: "Por canal"
+    graficos:
+      - tipo: ranking
+        campo: canal
+        campo_valor: contagem
+        titulo: "Tickets por canal"
+      - tipo: composicao
+        campo: canal
+        campo_valor: contagem
+        titulo: "Composição por canal"
+  - id: operacional
+    nome: "Operacional"
+    graficos:
+      - tipo: tabela
